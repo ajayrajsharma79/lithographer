@@ -73,3 +73,18 @@ Built on a modern stack (Django, PostgreSQL, DRF/GraphQL, Celery, Redis), Lithog
 *   **[Admin Usage Guide](./docs/admin_guide.md):** Guide for using the CMS Admin interface.
 *   **[Docker Usage Guide](./docs/docker_usage.md):** Instructions for running the project with Docker.
 
+## Disclaimer: AI-Assisted Development
+
+Please be advised that the development of the Lithographer CMS framework involved significant assistance from generative AI, specifically large language models (LLMs) from Google (Gemini) and an AI Agent.
+
+Throughout the development process, AI assistance was utilized for various tasks, including but not limited to:
+
+* Developing & Tunning initial prompts based on requirement specifications.
+* Producing boilerplate code snippets for models, APIs, admin interfaces, and other components based on detailed prompts.
+* Creating configuration files (e.g., `Dockerfile`, `docker-compose.yml`).
+* Drafting documentation sections (e.g., API documentation, feature descriptions).
+* Providing suggestions on architecture, implementation approaches, and best practices.
+
+It is crucial to understand that all AI-generated outputs served as a starting point or accelerator. This code, configuration, documentation, and architectural decision are going thorough review & testing by the me. I am providing this code for developer to play around. This code si strickly not for proudction as I am yet unsure of its security related aspects. 
+
+We believe in transparency regarding the tools and methodologies used in our development process.
