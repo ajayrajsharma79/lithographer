@@ -3,26 +3,38 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Permission, Role, APIKey
+from .models import Role, APIKey # Removed Permission import
 
 CMSUser = get_user_model()
 
-@admin.register(Permission)
-class PermissionAdmin(admin.ModelAdmin):
-    """Admin configuration for the Permission model."""
-    list_display = ('name', 'codename', 'description')
-    search_fields = ('name', 'codename')
-    ordering = ('codename',)
-
+# Removed PermissionAdmin class as Permission model was removed
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     """Admin configuration for the Role model."""
-    list_display = ('name', 'description', 'is_system_role')
+    list_display = ('name', 'description', 'permission_summary', 'is_system_role')
     list_filter = ('is_system_role',)
-    search_fields = ('name',)
+    search_fields = ('name', 'permissions') # Search JSON field (DB dependent)
     ordering = ('name',)
-    filter_horizontal = ('permissions',) # Use a nice widget for ManyToMany
+    # filter_horizontal = ('permissions',) # Cannot use filter_horizontal for JSONField
+    # Need a custom widget/form to handle the JSON permissions list nicely
+    # Using a simple textarea for now
+    fields = ('name', 'description', 'permissions', 'is_system_role')
+    # Consider formfield_overrides for a better widget if using a JSON editor package
+    # formfield_overrides = {
+    #     models.JSONField: {'widget': JSONEditorWidget},
+    # }
+
+    def permission_summary(self, obj):
+        count = len(obj.permissions)
+        if "*" in obj.permissions:
+            return _("All Permissions (*)")
+        if count == 0:
+            return _("None")
+        # Show first few permissions
+        return f"{count} permissions: {', '.join(obj.permissions[:3])}{'...' if count > 3 else ''}"
+    permission_summary.short_description = _("Permissions")
+
 
     # Prevent deletion of system roles
     def get_actions(self, request):

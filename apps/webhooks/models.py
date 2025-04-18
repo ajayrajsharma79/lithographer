@@ -7,8 +7,23 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-# Consider defining event choices centrally if they become numerous
-# EVENT_CHOICES = [ ('content.published', 'Content Published'), ... ]
+# Define available webhook event types
+# Consider making this dynamic or using a dedicated model if it becomes very large
+WEBHOOK_EVENT_CHOICES = [
+    ('content_published', _('Content: Published')),
+    ('content_updated', _('Content: Updated')),
+    ('content_deleted', _('Content: Deleted')),
+    # Add content-type specific events if needed, e.g.:
+    # ('content_published:article', _('Content: Article Published')),
+    ('media_uploaded', _('Media: Uploaded')),
+    ('media_deleted', _('Media: Deleted')),
+    ('comment_submitted', _('Comment: Submitted')),
+    ('comment_approved', _('Comment: Approved')),
+    # Add more events as needed (e.g., user registration, etc.)
+]
+# Generate a flat list of event names for validation/use elsewhere
+AVAILABLE_EVENT_NAMES = [choice[0] for choice in WEBHOOK_EVENT_CHOICES]
+
 
 class WebhookEndpoint(models.Model):
     """
@@ -24,9 +39,9 @@ class WebhookEndpoint(models.Model):
     # A ManyToManyField to a dedicated EventType model could be used for more structure.
     subscribed_events = models.JSONField(
         _("Subscribed Events"),
-        default=list, # Example: ["content.published", "user.created", "*"]
+        default=list, # Example: ["content_published", "media_uploaded", "*"]
         blank=True,
-        help_text=_("List of event types this webhook listens for (e.g., ['content.published', 'user.created']). Use '*' for all events.")
+        help_text=_("List of event types this webhook listens for (e.g., ['content_published', 'media_uploaded']). Use '*' for all events.")
     )
     secret = models.CharField(
         _("Webhook Secret"),
@@ -93,7 +108,7 @@ class WebhookEventLog(models.Model):
         _("Event Type"),
         max_length=100,
         db_index=True,
-        help_text=_("The specific event that triggered this webhook (e.g., 'content.published').")
+        help_text=_("The specific event that triggered this webhook (e.g., 'content_published').")
     )
     payload = models.JSONField(
         _("Payload"),

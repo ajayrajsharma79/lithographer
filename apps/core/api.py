@@ -27,7 +27,10 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SystemSetting
-        fields = ['site_name', 'default_language_code', 'timezone']
+        fields = [
+            'site_name', 'default_language_code', 'timezone',
+            'external_integrations', 'default_content_status' # Added new fields
+        ]
         # No read_only_fields needed here as it's a singleton managed via its view
 
     def update(self, instance, validated_data):

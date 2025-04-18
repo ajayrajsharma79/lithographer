@@ -76,6 +76,23 @@ class SystemSetting(models.Model):
         help_text=_("Default timezone for the application (e.g., 'UTC', 'America/New_York').")
         # Consider using timezone_field package for validation if needed
     )
+    # Store API keys/configs for external integrations
+    external_integrations = models.JSONField(
+        _("External Integrations Config"),
+        default=dict,
+        blank=True,
+        help_text=_("Store API keys and settings for external services (e.g., {'google_analytics_id': 'UA-XXXXX-Y'}). Use with caution.")
+    )
+    # Global content settings
+    default_content_status = models.CharField(
+        _("Default Content Status"),
+        max_length=20,
+        # Use choices from content app - requires careful import or duplication
+        # from apps.content.models import STATUS_CHOICES, STATUS_DRAFT
+        choices=[('draft', 'Draft'), ('in_review', 'In Review'), ('published', 'Published')], # Simplified choices for now
+        default='draft', # Default to draft
+        help_text=_("The default status assigned to newly created content instances.")
+    )
     # Add other global settings here as needed
 
     class Meta:

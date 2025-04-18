@@ -5,37 +5,7 @@ from django.utils import timezone
 import secrets
 import uuid
 
-class Permission(models.Model):
-    """
-    Represents a specific permission within the CMS.
-    e.g., 'can_edit_content', 'can_publish_content', 'can_manage_users'
-    """
-    codename = models.CharField(
-        _("Codename"),
-        max_length=100,
-        unique=True,
-        primary_key=True,
-        help_text=_("Unique identifier for the permission (e.g., 'publish_article').")
-    )
-    name = models.CharField(
-        _("Name"),
-        max_length=255,
-        help_text=_("Human-readable name for the permission (e.g., 'Can publish articles').")
-    )
-    description = models.TextField(
-        _("Description"),
-        blank=True,
-        help_text=_("Optional description of what the permission allows.")
-    )
-
-    class Meta:
-        verbose_name = _("Permission")
-        verbose_name_plural = _("Permissions")
-        ordering = ['codename']
-
-    def __str__(self):
-        return self.name
-
+# Removed the Permission model. Permissions will be string-based.
 
 class Role(models.Model):
     """
@@ -63,12 +33,12 @@ class Role(models.Model):
         blank=True,
         help_text=_("Optional description of the role's purpose.")
     )
-    permissions = models.ManyToManyField(
-        Permission,
+    # Store permissions as a list of strings in a JSON field
+    permissions = models.JSONField(
+        _("Permissions"),
+        default=list,
         blank=True,
-        related_name="roles",
-        verbose_name=_("Permissions"),
-        help_text=_("Permissions granted to this role.")
+        help_text=_("List of permission strings granted to this role (e.g., ['content.add_contentinstance', 'content.publish_blogpost']). Use '*' for all permissions.")
     )
     is_system_role = models.BooleanField(
         _("Is System Role"),
@@ -192,10 +162,14 @@ class CMSUser(AbstractUser, PermissionsMixin):
         if self.is_active and self.is_superuser:
             return True
 
-        # Check permissions granted through roles
-        # Use select_related or prefetch_related in views for efficiency
-        user_perms = Permission.objects.filter(roles__users=self).values_list('codename', flat=True)
-        return perm in user_perms
+        # Check permissions granted through assigned roles
+        # Use prefetch_related('roles') in views for efficiency
+        for role in self.roles.all():
+            if "*" in role.permissions: # Check for wildcard permission
+                return True
+            if perm in role.permissions:
+                return True
+        return False # Permission not found in any role
 
     # has_perms (plural) is usually handled by checking has_perm for each perm in the list
     # has_module_perms is often used by the Django admin

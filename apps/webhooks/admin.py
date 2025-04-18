@@ -14,6 +14,8 @@ class WebhookEndpointAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {'fields': ('target_url', 'subscribed_events', 'is_active')}),
+        # TODO: Use a better widget (e.g., CheckboxSelectMultiple based on WEBHOOK_EVENT_CHOICES)
+        # for the 'subscribed_events' JSON field via a custom form.
         (_('Security'), {'fields': ('secret',)}), # Use 'secret' for input
         (_('Metadata'), {'fields': ('created_by', 'created_at', 'updated_at')}),
     )

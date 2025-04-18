@@ -8,8 +8,8 @@ from .models import FrontEndUser
 @admin.register(FrontEndUser)
 class FrontEndUserAdmin(admin.ModelAdmin):
     """Admin configuration for the FrontEndUser model."""
-    list_display = ('username', 'email', 'first_name', 'last_name', 'display_name', 'is_active', 'date_joined', 'last_login')
-    list_filter = ('is_active', 'date_joined', 'last_login')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'display_name', 'status', 'is_active', 'date_joined', 'last_login')
+    list_filter = ('status', 'is_active', 'date_joined', 'last_login')
     search_fields = ('username', 'email', 'first_name', 'last_name', 'display_name')
     ordering = ('username',) # Order by username
     readonly_fields = ('date_joined', 'last_login', 'password') # Password hash shouldn't be edited directly
@@ -19,7 +19,7 @@ class FrontEndUserAdmin(admin.ModelAdmin):
         (None, {'fields': ('username', 'email', 'password')}), # Password shown readonly
         (_('Personal info'), {'fields': ('first_name', 'last_name', 'display_name')}),
         # Add other profile fields here if they exist (e.g., 'avatar', 'bio')
-        (_('Status'), {'fields': ('is_active',)}),
+        (_('Status'), {'fields': ('status', 'is_active')}), # Added status field
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
         # Note: PermissionsMixin fields ('is_superuser', 'groups', 'user_permissions')
         # are inherited but likely not used/relevant for FrontEndUser in the admin.
@@ -37,7 +37,7 @@ class FrontEndUserAdmin(admin.ModelAdmin):
             # Need a custom form to handle password creation properly if enabling add
             'fields': ('username', 'email', 'first_name', 'last_name', 'display_name'),
         }),
-         (_('Status'), {'fields': ('is_active',)}),
+         (_('Status'), {'fields': ('status', 'is_active')}), # Added status field
     )
     # Add a placeholder field for the add form if not using a custom form
     # readonly_fields = ('date_joined', 'last_login', 'password_prompt') # Make prompt readonly too

@@ -4,6 +4,8 @@ from .models import (
     ContentType, FieldDefinition, Taxonomy, Term,
     ContentInstance, ContentFieldInstance, ContentVersion
 )
+# Import component models for inline
+from apps.components.models import PageComponent
 
 # Inline admin for Field Definitions within Content Type
 class FieldDefinitionInline(admin.TabularInline):
@@ -57,7 +59,8 @@ class TermAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'taxonomy', 'parent', 'slug_list')
     list_filter = ('taxonomy',)
     search_fields = ('taxonomy__name', 'translated_names', 'translated_slugs') # Search JSON
-    # Need custom form/widgets to handle JSON fields nicely
+    # Need custom form/widgets to handle JSON fields nicely, ideally showing
+    # separate inputs for each active language.
     fields = ('taxonomy', 'parent', 'translated_names', 'translated_slugs')
     # Consider using django-mptt for efficient hierarchy management if needed
     # list_display = ('name', 'taxonomy', 'parent', 'slug') # If using MPTT fields
@@ -85,6 +88,30 @@ class ContentFieldInstanceInline(admin.TabularInline):
     # 4. Potentially group fields by language.
 
 
+# Inline for Page Components (Layout Builder)
+class PageComponentInline(admin.StackedInline): # Stacked might be better for component forms
+    model = PageComponent
+    extra = 0
+    fk_name = 'page'
+    ordering = ('order',)
+    # Define fields shown in the inline form
+    fields = ('component_definition', 'data', 'order')
+    # readonly_fields = ('component_definition',) # Allow changing component type? Maybe not.
+    sortable_field_name = "order" # If using django-admin-sortable2
+
+    # --- MAJOR CUSTOMIZATION NEEDED ---
+    # This inline requires significant customization:
+    # 1. JavaScript to handle drag-and-drop reordering (updating the 'order' field).
+    #    Libraries like SortableJS or django-admin-sortable2 can help.
+    # 2. Dynamic Form Generation: The 'data' field needs a custom widget/form
+    #    that renders the correct input fields based on the selected
+    #    'component_definition' and its 'field_definitions'. This likely involves
+    #    JavaScript fetching field definitions and rendering inputs, then saving
+    #    the structured data back to the JSON 'data' field.
+    # 3. Potentially a more visual "Add Component" interface instead of the default
+    #    Django inline "Add another" button.
+
+
 @admin.register(ContentInstance)
 class ContentInstanceAdmin(admin.ModelAdmin):
     """
@@ -95,14 +122,17 @@ class ContentInstanceAdmin(admin.ModelAdmin):
     list_filter = ('status', 'content_type', 'author', 'published_at')
     search_fields = ('id', 'content_type__name', 'author__email') # Searching actual content requires joining ContentFieldInstance
     readonly_fields = ('created_at', 'updated_at', 'published_at', 'author') # Author set automatically
-    # inlines = [ContentFieldInstanceInline] # Basic inline is insufficient
+    # inlines = [] # Start with empty inlines
 
-    # Define fieldsets - these will need to be dynamically generated in get_fieldsets/get_form
+    # Define base fieldsets - dynamically add content fields / layout editor
     fieldsets = (
         (None, {'fields': ('content_type', 'status')}),
         (_('Metadata'), {'fields': ('author', 'created_at', 'updated_at', 'published_at')}),
-        # ('Content Fields', {'fields': ()}), # Placeholder for dynamic fields
+        # ('Content Fields', {'fields': ()}), # Placeholder - Fields are added dynamically
         (_('Taxonomies'), {'fields': ('terms',)}),
+        # NOTE: Multilingual content editing requires significant customization below
+        # in get_form, save_related, and potentially render_change_form to present
+        # localizable fields grouped by language (e.g., using tabs).
     )
     filter_horizontal = ('terms',)
 
@@ -115,6 +145,36 @@ class ContentInstanceAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         # Prefetch related data for efficiency
         return super().get_queryset(request).select_related('content_type', 'author')
+
+    def get_inline_instances(self, request, obj=None):
+        """Conditionally show PageComponentInline for specific content types."""
+        inline_instances = []
+        # Define which content types use the layout builder
+        layout_builder_types = ['page', 'landingpage'] # Example API IDs
+        if obj and obj.content_type.api_id in layout_builder_types:
+            inline_instances.append(PageComponentInline(self.model, self.admin_site))
+        # else:
+            # Potentially add ContentFieldInstanceInline here for non-page types
+            # if needed, but requires heavy customization as noted above.
+            # inline_instances.append(ContentFieldInstanceInline(self.model, self.admin_site))
+        return inline_instances
+
+    def get_fieldsets(self, request, obj=None):
+         """Hide standard content fields if using layout builder?"""
+         # Define which content types use the layout builder
+         layout_builder_types = ['page', 'landingpage'] # Example API IDs
+         if obj and obj.content_type.api_id in layout_builder_types:
+             # For page types, maybe only show metadata and taxonomies,
+             # as content is managed via PageComponents inline
+             return (
+                 (None, {'fields': ('content_type', 'status')}),
+                 (_('Metadata'), {'fields': ('author', 'created_at', 'updated_at', 'published_at')}),
+                 (_('Taxonomies'), {'fields': ('terms',)}),
+             )
+         else:
+             # For standard content types, show the basic fieldsets
+             # (Dynamic content fields still need custom form generation)
+             return self.fieldsets # Return the default defined fieldsets
 
     def author_email(self, obj):
         return obj.author.email if obj.author else 'N/A'

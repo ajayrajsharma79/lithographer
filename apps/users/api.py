@@ -1,28 +1,20 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Permission, Role, APIKey
+from .models import Role, APIKey # Removed Permission import
 
 CMSUser = get_user_model()
 
-class PermissionSerializer(serializers.ModelSerializer):
-    """Serializer for the Permission model."""
-    class Meta:
-        model = Permission
-        fields = ['codename', 'name', 'description']
+# Removed PermissionSerializer as Permission model was removed
 
 class RoleSerializer(serializers.ModelSerializer):
     """Serializer for the Role model."""
-    # Use PrimaryKeyRelatedField for write operations, StringRelatedField for read
-    permissions = serializers.PrimaryKeyRelatedField(
-        queryset=Permission.objects.all(),
-        many=True,
-        required=False # Allow creating roles without permissions initially
-    )
-    permissions_detail = PermissionSerializer(source='permissions', many=True, read_only=True)
+    # Permissions are now stored as a list of strings in a JSONField
+    # No need for PrimaryKeyRelatedField or nested serializer here.
+    # The 'permissions' field from the model will be handled directly.
 
     class Meta:
         model = Role
-        fields = ['id', 'name', 'description', 'is_system_role', 'permissions', 'permissions_detail']
+        fields = ['id', 'name', 'description', 'is_system_role', 'permissions'] # Use the JSONField directly
         read_only_fields = ['id', 'is_system_role'] # System roles are managed internally
 
 class CMSUserSerializer(serializers.ModelSerializer):

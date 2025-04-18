@@ -51,8 +51,11 @@ INSTALLED_APPS = [
 
     # Third-Party Apps
     'rest_framework',
-    'rest_framework.authtoken', # For DRF Token Authentication
+    'rest_framework.authtoken', # For DRF Token Authentication (CMS User API Keys)
+    'rest_framework_simplejwt', # For JWT Authentication (FrontEnd User API)
+    'rest_framework_simplejwt.token_blacklist', # Optional: If using token blacklist feature
     'graphene_django',
+    'django_filters', # For DRF filtering
     # 'corsheaders', # Uncomment if you need CORS support
 
     # Lithographer CMS Apps (Order might matter for dependencies/templates)
@@ -63,7 +66,8 @@ INSTALLED_APPS = [
     'apps.comments.apps.CommentsConfig',
     'apps.webhooks.apps.WebhooksConfig',
     'apps.layouts.apps.LayoutsConfig',
-    'apps.content.apps.ContentConfig', # Added Content app
+    'apps.content.apps.ContentConfig',
+    'apps.components.apps.ComponentsConfig', # Added Components app
     # Add other CMS apps here as they are developed (e.g., taxonomy)
 
     # Celery (if using django-celery-results or similar)
@@ -165,6 +169,20 @@ STATICFILES_DIRS = [
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Default File Storage (Local filesystem for development)
+# For production, consider using django-storages with S3, GCS, etc.
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', default=None)
+# AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', default=None)
+# AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', default=None)
+# AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default=None)
+# AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+# AWS_S3_OBJECT_PARAMETERS = {'CacheControl': 'max-age=86400'}
+# AWS_DEFAULT_ACL = None # Default: None (private) or 'public-read'
+# AWS_LOCATION = 'media' # Optional: Subdirectory within the bucket
+# MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -181,8 +199,10 @@ LOGOUT_REDIRECT_URL = '/' # Where to redirect after logout
 # https://www.django-rest-framework.org/api-guide/settings/
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication', # API Key/Token auth
-        'rest_framework.authentication.SessionAuthentication', # For browsable API/admin
+        # Order matters: JWT first for frontend API, then Token for CMS API keys, then Session for Admin/Browsable API
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         # Sensible default: require authentication for API access
@@ -191,6 +211,11 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20, # Default page size for pagination
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema', # For OpenAPI spec generation
 }
 
@@ -320,5 +345,50 @@ LOGGING = {
 #         'hosts': 'localhost:9200' # Or your Elasticsearch cluster address
 #     },
 # }
+
+# Simple JWT Settings
+# https://django-rest-framework-simplejwt.readthedocs.io/en/latest/settings.html
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60), # Adjust as needed
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True, # Issue new refresh token when refreshing
+    "BLACKLIST_AFTER_ROTATION": True, # Blacklist old refresh token
+    "UPDATE_LAST_LOGIN": True, # Update user's last_login field on refresh
+
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY, # Use Django's SECRET_KEY
+    "VERIFYING_KEY": "",
+    "AUDIENCE": None,
+    "ISSUER": None,
+    "JSON_ENCODER": None,
+    "JWK_URL": None,
+    "LEEWAY": 0,
+
+    "AUTH_HEADER_TYPES": ("Bearer",), # Standard "Bearer <token>"
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id", # Use 'id' (UUID) from our user models
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+
+    "JTI_CLAIM": "jti",
+
+    "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
+    "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
+    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
+
+    "TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainPairSerializer",
+    "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
+    "TOKEN_VERIFY_SERIALIZER": "rest_framework_simplejwt.serializers.TokenVerifySerializer",
+    "TOKEN_BLACKLIST_SERIALIZER": "rest_framework_simplejwt.serializers.TokenBlacklistSerializer",
+    "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
+    "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
+}
+
 
 print(f"--- Settings Loaded (DEBUG={DEBUG}) ---") # Simple check during startup

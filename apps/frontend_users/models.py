@@ -33,6 +33,16 @@ class FrontEndUserManager(BaseUserManager):
         raise NotImplementedError(_("Cannot create a superuser for FrontEndUser model."))
 
 
+# Status choices for FrontEndUser
+STATUS_ACTIVE = 'active'
+STATUS_INACTIVE = 'inactive' # e.g., email not verified
+STATUS_BANNED = 'banned'
+FRONTEND_USER_STATUS_CHOICES = [
+    (STATUS_ACTIVE, _('Active')),
+    (STATUS_INACTIVE, _('Inactive')),
+    (STATUS_BANNED, _('Banned')),
+]
+
 class FrontEndUser(AbstractBaseUser, PermissionsMixin):
     """
     Represents a user of the public-facing website (e.g., commenters, members).
@@ -51,7 +61,7 @@ class FrontEndUser(AbstractBaseUser, PermissionsMixin):
         _("Username"),
         max_length=150,
         unique=True,
-        # null=True, # Removed after migration 0002
+        # null=True, # Removed after applying migrations
         help_text=_("Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."),
         # Add validators if needed, e.g., ASCIIUsernameValidator
     )
@@ -80,6 +90,14 @@ class FrontEndUser(AbstractBaseUser, PermissionsMixin):
         _('staff status'),
         default=False,
         help_text=_('Designates whether the user can log into the Django admin site (always False for FrontEndUser).'),
+    )
+    status = models.CharField(
+        _("Status"),
+        max_length=20,
+        choices=FRONTEND_USER_STATUS_CHOICES,
+        default=STATUS_ACTIVE, # Or STATUS_INACTIVE if email verification is required
+        db_index=True,
+        help_text=_("The current status of the front-end user account.")
     )
     date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
     last_login = models.DateTimeField(_('last login'), blank=True, null=True) # Added last_login

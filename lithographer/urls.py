@@ -26,32 +26,53 @@ from graphene_django.views import GraphQLView # For GraphQL endpoint
 from rest_framework.routers import DefaultRouter
 # Import ViewSets
 from apps.core.views import LanguageViewSet, SystemSettingViewSet
-from apps.users.views import PermissionViewSet, RoleViewSet, CMSUserViewSet, APIKeyViewSet
-from apps.frontend_users.views import FrontEndUserViewSet
+from apps.users.views import RoleViewSet, CMSUserViewSet, APIKeyViewSet
+# Import specific frontend views instead of the ViewSet
+from apps.frontend_users.views import UserRegistrationView, UserProfileView #, password_reset_request, password_reset_confirm
 from apps.webhooks.views import WebhookEndpointViewSet, WebhookEventLogViewSet
+# Import media viewsets
+from apps.media.views import FolderViewSet, MediaTagViewSet, MediaAssetViewSet, ImageOptimizationProfileViewSet
+# Import JWT views
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
 # Import content viewsets
 from apps.content.views import (
     ContentTypeViewSet, TaxonomyViewSet, TermViewSet,
     ContentInstanceViewSet, ContentVersionViewSet
 )
+# Import comment views
+from apps.comments.views import CommentCreateView #, CommentListView
+# Import component viewsets
+from apps.components.views import ComponentDefinitionViewSet
 
 # Create a router and register our viewsets.
 router = DefaultRouter()
 router.register(r'languages', LanguageViewSet, basename='language') # Use basename as lookup is 'code'
 router.register(r'system-settings', SystemSettingViewSet, basename='systemsetting') # Use basename for singleton ViewSet
-router.register(r'permissions', PermissionViewSet)
+# router.register(r'permissions', PermissionViewSet) # Removed registration
 router.register(r'roles', RoleViewSet)
 router.register(r'api-keys', APIKeyViewSet, basename='apikey') # Add basename
 router.register(r'cms-users', CMSUserViewSet)
-router.register(r'frontend-users', FrontEndUserViewSet)
-router.register(r'webhook-endpoints', WebhookEndpointViewSet, basename='webhookendpoint') # Add basename
+# router.register(r'frontend-users', FrontEndUserViewSet) # Replaced by specific auth views
+router.register(r'webhook-endpoints', WebhookEndpointViewSet, basename='webhookendpoint')
 router.register(r'webhook-logs', WebhookEventLogViewSet) # Read-only logs
 # Register content viewsets
 router.register(r'content-types', ContentTypeViewSet, basename='contenttype') # Use basename as lookup is api_id
 router.register(r'taxonomies', TaxonomyViewSet, basename='taxonomy') # Use basename as lookup is api_id
 router.register(r'terms', TermViewSet, basename='term') # Terms might need filtering by taxonomy in practice
-router.register(r'content-instances', ContentInstanceViewSet, basename='contentinstance') # Add basename
-router.register(r'content-versions', ContentVersionViewSet) # Read-only versions
+router.register(r'content-instances', ContentInstanceViewSet, basename='contentinstance')
+router.register(r'content-versions', ContentVersionViewSet, basename='contentversion') # Add basename for read-only
+# Register media viewsets
+router.register(r'media/folders', FolderViewSet)
+router.register(r'media/tags', MediaTagViewSet, basename='mediatag') # Use basename as lookup is slug
+router.register(r'media/assets', MediaAssetViewSet)
+router.register(r'media/optimization-profiles', ImageOptimizationProfileViewSet)
+# Register component viewsets
+router.register(r'component-definitions', ComponentDefinitionViewSet, basename='componentdefinition') # Use basename as lookup is api_id
+
 
 # Nested routing for terms (Manual approach - consider drf-nested-routers for complex cases)
 # This pattern allows /taxonomies/{taxonomy_api_id}/terms/
@@ -63,13 +84,25 @@ urlpatterns = [
     # Add nested term routes BEFORE the main router include
     path('api/v1/taxonomies/<str:taxonomy_api_id>/terms/', taxonomy_terms_list, name='taxonomy-terms-list'),
     path('api/v1/taxonomies/<str:taxonomy_api_id>/terms/<uuid:pk>/', taxonomy_terms_detail, name='taxonomy-terms-detail'),
+    # Nested comment routes
+    path('api/v1/content-instances/<uuid:instance_pk>/comments/', CommentCreateView.as_view(), name='comment-create'), # POST only
+    # path('api/v1/content-instances/<uuid:instance_pk>/comments/', CommentListView.as_view(), name='comment-list'), # GET only - Use query param on instance detail instead?
     # Django Admin
     path('admin/', admin.site.urls),
 
-    # API Endpoints
-    path('api/v1/', include(router.urls)), # Include DRF router URLs
-    path('api/v1/auth/', include('rest_framework.urls', namespace='rest_framework')), # Browsable API login/logout
-    # Add specific auth endpoints if needed (e.g., for token generation/refresh)
+    # API Endpoints (Router - includes CMS users, content, media etc.)
+    path('api/v1/', include(router.urls)),
+
+    # Specific Auth Endpoints for FrontEnd Users (JWT)
+    path('api/auth/register/', UserRegistrationView.as_view(), name='user_register'),
+    path('api/auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'), # JWT Login
+    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/auth/profile/', UserProfileView.as_view(), name='user_profile'),
+    # path('api/auth/password/reset/', password_reset_request, name='password_reset_request'),
+    # path('api/auth/password/reset/confirm/', password_reset_confirm, name='password_reset_confirm'),
+
+    # path('api/v1/auth/', include('rest_framework.urls', namespace='rest_framework')), # Removed - Use JWT endpoints above
 
     # GraphQL Endpoint
     path("graphql", GraphQLView.as_view(graphiql=settings.DEBUG)), # Enable GraphiQL interface in DEBUG mode

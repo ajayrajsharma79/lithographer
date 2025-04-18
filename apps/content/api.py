@@ -10,6 +10,8 @@ from .models import (
 # Import serializers from other apps if needed (e.g., for user/language)
 from apps.core.models import Language
 from apps.users.api import CMSUserSerializer
+# Import component models for layout data
+from apps.components.models import PageComponent
 
 # --- Content Type & Field Definition Serializers (Read-Only for now) ---
 
@@ -134,6 +136,19 @@ class ContentFieldInstanceSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'field_api_id', 'language_code']
 
 
+# --- Page Component Serializer (for nested layout data) ---
+class PageComponentSerializer(serializers.ModelSerializer):
+    """Read-only serializer for representing PageComponent data in layouts."""
+    component_api_id = serializers.SlugRelatedField(
+        source='component_definition', read_only=True, slug_field='api_id'
+    )
+
+    class Meta:
+        model = PageComponent
+        fields = ['id', 'component_api_id', 'order', 'data']
+        read_only_fields = fields
+
+
 class ContentInstanceSerializer(serializers.ModelSerializer):
     """
     Serializer for ContentInstance. Handles dynamic fields based on ContentType.
@@ -154,7 +169,14 @@ class ContentInstanceSerializer(serializers.ModelSerializer):
     # Or simpler: {"field_api_id": value} for non-localizable, {"field_api_id": {"lang_code": value, ...}} for localizable
     # Let's try the simpler approach for input/output representation:
     content_data = serializers.SerializerMethodField(read_only=True) # Renamed from 'fields'
+    # Add field for layout components
+    layout_components = PageComponentSerializer(
+        source='components', # Use the related name from ContentInstance to PageComponent FK
+        many=True,
+        read_only=True
+    )
     # For write operations, we'll expect a similar structure in request.data['content_data']
+    # Layout component data is saved via the admin inline for now.
 
     class Meta:
         model = ContentInstance
@@ -162,11 +184,13 @@ class ContentInstanceSerializer(serializers.ModelSerializer):
             'id', 'content_type', 'content_type_api_id', 'status',
             'author', 'author_detail', 'created_at', 'updated_at', 'published_at',
             'terms', 'term_ids', 'terms_detail',
-            'content_data' # Renamed from 'fields'
+            'content_data', # Renamed from 'fields'
+            'layout_components' # Added layout data
         ]
         read_only_fields = [
             'id', 'content_type_api_id', 'author_detail', 'terms_detail',
-            'created_at', 'updated_at', 'published_at', 'content_data' # Renamed from 'fields'
+            'created_at', 'updated_at', 'published_at', 'content_data', # Renamed from 'fields'
+            'layout_components' # Layout is read-only via this serializer
         ]
         extra_kwargs = {
             'content_type': {'write_only': True, 'required': True}, # Required on create
@@ -175,31 +199,76 @@ class ContentInstanceSerializer(serializers.ModelSerializer):
         }
 
     def get_content_data(self, obj): # Renamed from get_fields
-        """Retrieve and structure field data for output."""
-        structured_fields = {}
-        field_instances = obj.field_instances.select_related('field_definition', 'language').all()
-        definitions = obj.content_type.field_definitions.all()
-        def_map = {d.api_id: d for d in definitions}
+        """
+        Retrieve and structure field data for output, applying language fallback.
+        """
+        # Determine requested language and fallbacks
+        request = self.context.get('request')
+        requested_lang_code = request.query_params.get('lang') if request else None
+        if not requested_lang_code:
+            requested_lang_code = settings.LANGUAGE_CODE # Site default
 
-        # Group by field_api_id first
-        grouped_by_field = {}
+        base_lang_code = requested_lang_code.split('-')[0]
+        site_default_lang_code = settings.LANGUAGE_CODE
+        fallback_order = [requested_lang_code]
+        if base_lang_code != requested_lang_code:
+            fallback_order.append(base_lang_code)
+        if site_default_lang_code not in fallback_order:
+             fallback_order.append(site_default_lang_code)
+        # Add base of site default if different
+        site_default_base = site_default_lang_code.split('-')[0]
+        if site_default_base not in fallback_order:
+            fallback_order.append(site_default_base)
+
+
+        structured_fields = {}
+        # Optimize: Fetch all field instances at once
+        field_instances = obj.field_instances.select_related('field_definition', 'language').all()
+        # Group instances by field definition API ID and language code
+        instances_map = {} # { "field_api_id": { "lang_code": value, ... }, ... }
+        non_localizable_map = {} # { "field_api_id": value }
+
         for fi in field_instances:
             api_id = fi.field_definition.api_id
-            if api_id not in grouped_by_field:
-                grouped_by_field[api_id] = []
-            grouped_by_field[api_id].append(fi)
+            if fi.language: # Localizable
+                if api_id not in instances_map:
+                    instances_map[api_id] = {}
+                instances_map[api_id][fi.language.code] = fi.value
+            else: # Non-localizable
+                non_localizable_map[api_id] = fi.value
 
-        # Structure the output
-        for api_id, instances in grouped_by_field.items():
-            definition = def_map.get(api_id)
-            if not definition: continue # Should not happen if data is consistent
-
+        # Iterate through definitions to ensure all fields are considered
+        definitions = obj.content_type.field_definitions.all()
+        for definition in definitions:
+            api_id = definition.api_id
             if definition.is_localizable:
-                structured_fields[api_id] = {fi.language.code: fi.value for fi in instances if fi.language}
+                found_value = None
+                found_lang_code = None
+                # Try fallbacks in order
+                lang_values = instances_map.get(api_id, {})
+                for lang_code in fallback_order:
+                    if lang_code in lang_values:
+                        found_value = lang_values[lang_code]
+                        found_lang_code = lang_code
+                        break
+                # Final fallback: first available language for this field
+                if found_value is None and lang_values:
+                     first_lang = next(iter(lang_values.keys()))
+                     found_value = lang_values[first_lang]
+                     found_lang_code = first_lang
+
+                # Structure output to include value and language it came from
+                if found_value is not None:
+                     structured_fields[api_id] = {
+                         "value": found_value,
+                         "language": found_lang_code
+                     }
+                else:
+                     structured_fields[api_id] = None # Or {"value": None, "language": None}
+
             else:
-                # Non-localizable fields should only have one instance (language=None)
-                if instances:
-                    structured_fields[api_id] = instances[0].value
+                # Non-localizable field
+                structured_fields[api_id] = non_localizable_map.get(api_id) # Value is directly stored
 
         return structured_fields
 

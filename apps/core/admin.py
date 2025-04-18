@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.translation import gettext_lazy as _ # Import gettext_lazy
 from .models import Language, SystemSetting
 
 @admin.register(Language)
@@ -46,8 +47,15 @@ class SystemSettingAdmin(admin.ModelAdmin):
 
     # Customize fieldsets for better layout
     fieldsets = (
-        (None, {
+        (_('General'), {
             'fields': ('site_name', 'default_language', 'timezone')
+        }),
+        (_('Content Settings'), {
+            'fields': ('default_content_status',)
+        }),
+        (_('External Integrations'), {
+            'classes': ('collapse',), # Optionally collapse this section
+            'fields': ('external_integrations',)
         }),
         # Add other setting groups here
     )

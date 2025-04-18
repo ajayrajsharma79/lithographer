@@ -4,21 +4,12 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from .models import Permission, Role, APIKey
-from .api import PermissionSerializer, RoleSerializer, CMSUserSerializer, APIKeySerializer
+from .models import Role, APIKey # Removed Permission import
+from .api import RoleSerializer, CMSUserSerializer, APIKeySerializer # Removed PermissionSerializer
 
 CMSUser = get_user_model()
 
-# Permissions can often be managed via roles, so a read-only viewset might suffice initially.
-class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    API endpoint that allows permissions to be viewed.
-    Permissions are typically defined in code or migrations, not created via API.
-    """
-    queryset = Permission.objects.all().order_by('codename')
-    serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAdminUser] # Only admins should see raw permissions
-
+# Removed PermissionViewSet as Permission model was removed
 
 class RoleViewSet(viewsets.ModelViewSet):
     """
