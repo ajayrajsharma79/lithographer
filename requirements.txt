@@ -1,0 +1,9 @@
+django=5.2 # latest LTS
+psycopg # Recommended over psycopg2-binary for production
+djangorestframework
+django-environ
+celery
+redis # For Celery broker/backend & caching
+graphene-django # If using GraphQL
+elasticsearch-dsl # If using Elasticsearch
+# Add others as needed: django-mptt, django-reversion, pillow, etc.
