@@ -1,5 +1,7 @@
 # Lithographer (Experimental CMS - Not for production)
-Lithographer is a reusable, headless CMS framework completely coded by AI with no human interfarence, it is powered by Python and Django. Features dynamic content modeling, multilingual support, visual layout building, and robust APIs.
+Lithographer is a reusable, headless CMS framework, it is powered by Python and Django, it features dynamic content modeling, multilingual support, visual layout building, and robust APIs. It is completely coded by AI with no human interfarence. 
+
+This is part of my on-going experiments with various AI Models for testing thier capabities and my skills to develop AI Agents.  
 
 ## Features
 
