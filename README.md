@@ -71,4 +71,5 @@ Built on a modern stack (Django, PostgreSQL, DRF/GraphQL, Celery, Redis), Lithog
 *   **[Getting Started Guide](./docs/getting_started.md):** Covers initial project setup and logging in.
 *   **[API Documentation](./docs/api/index.md):** Detailed reference for all available API endpoints.
 *   **[Admin Usage Guide](./docs/admin_guide.md):** Guide for using the CMS Admin interface.
+*   **[Docker Usage Guide](./docs/docker_usage.md):** Instructions for running the project with Docker.
 

@@ -1,0 +1,154 @@
+# docker-compose.yml for Lithographer CMS
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Load environment variables from .env file for database configuration
+    env_file:
+      - .env
+    # Ensure environment variables POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD are set in .env
+    restart: unless-stopped
+    networks:
+      - lithographer_network
+
+  redis:
+    image: redis:7-alpine
+    # Optional: Add a volume for Redis persistence if needed
+    # volumes:
+    #   - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - lithographer_network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Command to run the Gunicorn server (replace 'lithographer' if your project name differs)
+    command: gunicorn lithographer.wsgi:application --bind 0.0.0.0:8000 --workers=3
+    volumes:
+      # --- Development Mount ---
+      # Uncomment the line below for development to mount your local code into the container.
+      # This allows for hot-reloading (if configured in Django) but is NOT recommended for production.
+      # - .:/app
+
+      # --- Production/Shared Volumes ---
+      # Mount volumes for static and media files.
+      # Static files are collected by Django and can be served by a web server like Nginx in production.
+      # Media files are user-uploaded content.
+      - static_volume:/app/staticfiles # Adjust '/app/staticfiles' if your STATIC_ROOT is different
+      - media_volume:/app/mediafiles   # Adjust '/app/mediafiles' if your MEDIA_ROOT is different
+    ports:
+      - "8000:8000"
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    # Ensure required variables like SECRET_KEY, DEBUG, DATABASE_URL, REDIS_URL, CELERY_BROKER_URL are set in .env
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - lithographer_network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Command to start the Celery worker (replace 'lithographer' if your project name differs)
+    command: celery -A lithographer worker --loglevel=info
+    volumes:
+      # --- Development Mount ---
+      # Uncomment for development consistency if mounting code in the 'web' service.
+      # - .:/app
+
+      # --- Production/Shared Volumes ---
+      # Mount media volume if workers need to access/modify uploaded files
+      - media_volume:/app/mediafiles # Adjust '/app/mediafiles' if your MEDIA_ROOT is different
+    # Load environment variables from .env file (needs same DB, Redis, etc. access as web)
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - lithographer_network
+
+  # --- Optional Elasticsearch Service ---
+  # Uncomment the following section if you are using Elasticsearch
+  # search:
+  #   image: elasticsearch:7.17.3 # Specify your desired version
+  #   environment:
+  #     - discovery.type=single-node
+  #     - ES_JAVA_OPTS=-Xms512m -Xmx512m # Adjust heap size as needed
+  #     # Add other Elasticsearch environment variables if required
+  #   volumes:
+  #     - elasticsearch_data:/usr/share/elasticsearch/data
+  #   ports:
+  #     - "9200:9200"
+  #     - "9300:9300"
+  #   restart: unless-stopped
+  #   networks:
+  #     - lithographer_network
+
+# Define named volumes for persistent data
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
+  # redis_data: # Uncomment if using Redis persistence
+  # elasticsearch_data: # Uncomment if using Elasticsearch
+
+# Define a custom network for better isolation and service discovery
+networks:
+  lithographer_network:
+    driver: bridge
+
+# --- .env File Guidance ---
+#
+# Create a `.env` file in the same directory as this docker-compose.yml file.
+# This file should contain your environment-specific configurations and secrets.
+# Example `.env` structure:
+#
+# ```env
+# # General Django Settings
+# SECRET_KEY=your_very_secret_and_unique_django_key_here # IMPORTANT: Change this! Use a strong random key.
+# DEBUG=True # Set to False for production deployments
+# ALLOWED_HOSTS=localhost,127.0.0.1 # Add your production domain(s) here for production
+#
+# # PostgreSQL Database Configuration
+# POSTGRES_DB=lithographer_db
+# POSTGRES_USER=lithographer_user
+# POSTGRES_PASSWORD=a_very_secure_password_for_postgres # IMPORTANT: Change this!
+# # This URL is used by Django to connect to the 'db' service defined above
+# DATABASE_URL=postgres://lithographer_user:a_very_secure_password_for_postgres@db:5432/lithographer_db
+#
+# # Redis Configuration (for Caching and Celery)
+# # This URL points to the 'redis' service defined above
+# REDIS_URL=redis://redis:6379/0
+#
+# # Celery Configuration
+# # Often uses different Redis databases for broker and results
+# CELERY_BROKER_URL=redis://redis:6379/1
+# CELERY_RESULT_BACKEND=redis://redis:6379/2
+#
+# # Elasticsearch (Optional)
+# # Uncomment and configure if using the 'search' service
+# # ELASTICSEARCH_URL=http://search:9200
+#
+# # Email Configuration (Example for SMTP)
+# # EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+# # EMAIL_HOST=smtp.example.com
+# # EMAIL_PORT=587
+# # EMAIL_USE_TLS=True
+# # EMAIL_HOST_USER=your_email@example.com
+# # EMAIL_HOST_PASSWORD=your_email_password
+#
+# # Add any other custom environment variables your application needs
+# ```
+# --- End .env Guidance ---
