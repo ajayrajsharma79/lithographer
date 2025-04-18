@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env*
+.git/
+.gitignore
+db.sqlite3*
+*.log
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
